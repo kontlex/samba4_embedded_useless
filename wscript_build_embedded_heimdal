@@ -1,0 +1,5 @@
+import Logs
+Logs.verbose=1
+Logs.info("\tSelected embedded Heimdal build")
+bld.RECURSE('source4/kdc')
+bld.RECURSE('source4/heimdal_build')
