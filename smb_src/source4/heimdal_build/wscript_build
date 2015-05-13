@@ -59,7 +59,7 @@ def HEIMDAL_ASN1(name, source,
     os_env = dict(os.environ)
     qemu_path = os_env.get('QEMU_PATH', None)
     if qemu_path is not None:
-        cross_rule = 'qemu-arm-static -L ' + qemu_path
+        cross_rule = 'qemu-arm -L ' + qemu_path
     else:
         cross_rule = ''
              
@@ -166,7 +166,7 @@ def HEIMDAL_ERRTABLE(name, source):
     os_env = dict(os.environ)
     qemu_path = os_env.get('QEMU_PATH', None)
     if qemu_path is not None:
-        cross_rule = 'qemu-arm-static -L ' + qemu_path
+        cross_rule = 'qemu-arm -L ' + qemu_path
     else:
         cross_rule = ''
                     

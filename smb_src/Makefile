@@ -10,7 +10,7 @@ WAF=WAF_MAKE=1 $(WAF_BINARY)
 #path to cross ld,qemu search path is QEMU_PATH_ENV/lib/ld*.so
 #QEMU_PATH_ENV=
 
-CROSS_EXECUTE=qemu-arm-static -L $(QEMU_PATH_ENV)
+CROSS_EXECUTE=qemu-arm -L $(QEMU_PATH_ENV)
 
 #embedded python root dir
 #python_ROOT_DIR_EMB=
