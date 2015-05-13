@@ -16,7 +16,7 @@ CROSS_EXECUTE=qemu-arm -L $(QEMU_PATH_ENV)
 #python_ROOT_DIR_EMB=
 
 #configure options for all builds
-CONF_OPTIONS_COMMON=--prefix=/mnt/sda1/smb4 --without-ldap --without-ad-dc --without-ads --without-acl --disable-cups --without-gettext --without-winbind --disable-iprint --without-pam --without-pam_smbpass --without-quotas --without-utmp --disable-avahi --without-iconv --without-dnsupdate --without-syslog --with-aio-support --nopyc --nopyo --without-regedit
+CONF_OPTIONS_COMMON=--prefix=/mnt/sda1/smb4 --without-ldap --without-ad-dc --without-ads --without-acl --disable-cups --without-gettext --without-winbind --disable-iprint --without-pam --without-pam_smbpass --without-quotas --without-utmp --disable-avahi --without-iconv --without-dnsupdate --without-syslog --with-aio-support --nopyc --nopyo
 
 all:
 	$(WAF) build
@@ -31,7 +31,7 @@ install:
 	$(WAF) install
 	
 install_embedded:
-	QEMU_PATH=$(QEMU_PATH_ENV)  $(WAF) install
+	DESTDIR=$(DESTDIR_ENV) QEMU_PATH=$(QEMU_PATH_ENV)  $(WAF) install
 	
 uninstall:
 	$(WAF) uninstall
@@ -79,7 +79,7 @@ configure_local:
 	$(WAF) configure  $(CONF_OPTIONS_COMMON)
 	
 configure_embedded:
-	NCURSES_CONFIG=$(NCURSES_CONFIG_EMB) LDFLAGS=-I$(python_ROOT_DIR_EMB)include/python2.7 python_INCLUDEPY=$(python_ROOT_DIR_EMB)include/python2.7 python_LIBDIR=$(python_ROOT_DIR_EMB)lib CC=$(CROSS_COMPILE)gcc CPP=$(CROSS_COMPILE)cpp AR=$(CROSS_COMPILE)ar RANLIB=$(CROSS_COMPILE)ranlib $(WAF) configure  --cross-compile --cross-execute='$(CROSS_EXECUTE)' $(CONF_OPTIONS_COMMON)
+	LDFLAGS='-L$(NCURSES_CONFIG_EMB)lib -lncurses' NCURSES_CONFIG=$(NCURSES_CONFIG_EMB)/bin/ncurses5-config python_INCLUDEPY=$(python_ROOT_DIR_EMB)include/python2.7 python_LIBDIR=$(python_ROOT_DIR_EMB)lib CC=$(CROSS_COMPILE)gcc CPP=$(CROSS_COMPILE)cpp AR=$(CROSS_COMPILE)ar RANLIB=$(CROSS_COMPILE)ranlib $(WAF) configure  --cross-compile --cross-execute='$(CROSS_EXECUTE)' $(CONF_OPTIONS_COMMON)
 
 #cross-answers example, using instead qemu cross-execute
 #configure_with_cross_answers:
