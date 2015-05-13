@@ -5,15 +5,15 @@ WAF_BINARY=$(PYTHON) ./buildtools/bin/waf
 WAF=WAF_MAKE=1 $(WAF_BINARY)
 
 #cross-compiler prefix, like arm-none-linux-gnueabi-
-CROSS_COMPILE=
+#CROSS_COMPILE=
 
 #path to cross ld,qemu search path is QEMU_PATH_ENV/lib/ld*.so
-QEMU_PATH_ENV=
+#QEMU_PATH_ENV=
 
 CROSS_EXECUTE=qemu-arm-static -L $(QEMU_PATH_ENV)
 
 #embedded python root dir
-python_ROOT_DIR_EMB=
+#python_ROOT_DIR_EMB=
 
 #configure options for all builds
 CONF_OPTIONS_COMMON=--prefix=/mnt/sda1/smb4 --without-ldap --without-ad-dc --without-ads --without-acl --disable-cups --without-gettext --without-winbind --disable-iprint --without-pam --without-pam_smbpass --without-quotas --without-utmp --disable-avahi --without-iconv --without-dnsupdate --without-syslog --with-aio-support --nopyc --nopyo
@@ -79,7 +79,7 @@ configure_local:
 	$(WAF) configure  $(CONF_OPTIONS_COMMON)
 	
 configure_embedded:
-	LDFLAGS=-I$(python_ROOT_DIR_EMB)include/python2.7 python_INCLUDEPY=$(python_ROOT_DIR_EMB)include/python2.7 python_LIBDIR=$(python_ROOT_DIR_EMB)lib CC=$(CROSS_COMPILE)gcc CPP=$(CROSS_COMPILE)cpp AR=$(CROSS_COMPILE)ar RANLIB=$(CROSS_COMPILE)ranlib $(WAF) configure  --cross-compile --cross-execute='$(CROSS_EXECUTE)' $(CONF_OPTIONS_COMMON)
+	NCURSES_CONFIG=$(NCURSES_CONFIG_EMB) LDFLAGS=-I$(python_ROOT_DIR_EMB)include/python2.7 python_INCLUDEPY=$(python_ROOT_DIR_EMB)include/python2.7 python_LIBDIR=$(python_ROOT_DIR_EMB)lib CC=$(CROSS_COMPILE)gcc CPP=$(CROSS_COMPILE)cpp AR=$(CROSS_COMPILE)ar RANLIB=$(CROSS_COMPILE)ranlib $(WAF) configure  --cross-compile --cross-execute='$(CROSS_EXECUTE)' $(CONF_OPTIONS_COMMON)
 
 #cross-answers example, using instead qemu cross-execute
 #configure_with_cross_answers:
