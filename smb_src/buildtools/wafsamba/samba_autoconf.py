@@ -557,6 +557,9 @@ int foo()
             continue
 
         (ccflags, ldflags, cpppath) = library_flags(conf, lib)
+        if lib == 'menu' or lib == 'panel' or lib == 'form':
+            ldflags  = '-lncurses'            
+        
         if shlib:
             res = conf.check(features='cc cshlib', fragment=fragment, lib=lib, uselib_store=lib, ccflags=ccflags, ldflags=ldflags, uselib=lib.upper())
         else:
@@ -578,7 +581,6 @@ int foo()
             ret.append(lib)
 
     return ret
-
 
 
 @conf
@@ -604,7 +606,7 @@ def CHECK_FUNCS_IN(conf, list, library, mandatory=False, checklibc=False,
     for f in remaining[:]:
         if CONFIG_SET(conf, 'HAVE_%s' % f.upper()):
             remaining.remove(f)
-
+    
     # see if the functions are in libc
     if checklibc:
         for f in remaining[:]:
@@ -629,7 +631,6 @@ def CHECK_FUNCS_IN(conf, list, library, mandatory=False, checklibc=False,
             ret = False
 
     return ret
-
 
 @conf
 def IN_LAUNCH_DIR(conf):

@@ -79,7 +79,7 @@ configure_local:
 	$(WAF) configure  $(CONF_OPTIONS_COMMON)
 	
 configure_embedded:
-	LDFLAGS='-L$(NCURSES_CONFIG_EMB)lib -lncurses' NCURSES_CONFIG=$(NCURSES_CONFIG_EMB)/bin/ncurses5-config python_INCLUDEPY=$(python_ROOT_DIR_EMB)include/python2.7 python_LIBDIR=$(python_ROOT_DIR_EMB)lib CC=$(CROSS_COMPILE)gcc CPP=$(CROSS_COMPILE)cpp AR=$(CROSS_COMPILE)ar RANLIB=$(CROSS_COMPILE)ranlib $(WAF) configure  --cross-compile --cross-execute='$(CROSS_EXECUTE)' $(CONF_OPTIONS_COMMON)
+	LDFLAGS='-L$(NCURSES_CONFIG_EMB)lib' NCURSES_CONFIG=$(NCURSES_CONFIG_EMB)/bin/ncurses5-config python_INCLUDEPY=$(python_ROOT_DIR_EMB)include/python2.7 python_LIBDIR=$(python_ROOT_DIR_EMB)lib CC=$(CROSS_COMPILE)gcc CPP=$(CROSS_COMPILE)cpp AR=$(CROSS_COMPILE)ar RANLIB=$(CROSS_COMPILE)ranlib $(WAF) configure  --cross-compile --cross-execute='$(CROSS_EXECUTE)' $(CONF_OPTIONS_COMMON)
 
 #cross-answers example, using instead qemu cross-execute
 #configure_with_cross_answers:
