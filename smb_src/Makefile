@@ -2,7 +2,7 @@
 # -Wpoison-system-directories
 PYTHON?=python
 WAF_BINARY=$(PYTHON) ./buildtools/bin/waf
-WAF=WAF_MAKE=1 $(WAF_BINARY) -vvv
+WAF=WAF_MAKE=1 $(WAF_BINARY)
 
 #cross-compiler prefix, like arm-none-linux-gnueabi-
 #CROSS_COMPILE=
