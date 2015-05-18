@@ -1,20 +1,18 @@
-#!/bin/sh
-
-root_dir=$(pwd)
-src_dir=${root_dir}/nc_src
-build_dir=${root_dir}/build
-install_dir=${root_dir}/ncurses_bin
-
-mkdir ${install_dir}
-mkdir ${build_dir}
-
-cd ${root_dir}/build
+top_dir=$(pwd)
+cd ./smb_src
 
 PATH="${TC_TOOLCHAIN_PATH}:${PATH}"
-CC=${TC_TOOLCHAIN_TRIPLET}-gcc  ${src_dir}/configure ${TC_TOOLCHAIN_TRIPLET} --host=x86_64-gnu-linux --target=${TC_TOOLCHAIN_TRIPLET} --with-shared --prefix=${install_dir}
+QEMU_PATH_ENV=${C_TOOLCHAIN_DIR}
+CROSS_COMPILE=${C_TOOLCHAIN_UTILITES_HOST}-
+python_ROOT_DIR_EMB=${top_dir}/python_bin/
+NCURSES_CONFIG_EMB=${top_dir}/ncurses_bin/
+DESTDIR_ENV=${top_dir}/smb_bin
+export QEMU_PATH_ENV
+export CROSS_COMPILE
+export python_ROOT_DIR_EMB
+export NCURSES_CONFIG_EMB
+export DESTDIR_ENV
 
-make HOSTCC=gcc CXX=${TC_TOOLCHAIN_TRIPLET}-c++
-
-make install
-
-rm -rf ${build_dir}
+make configure_embedded
+make build_embedded
+make install_embedded
