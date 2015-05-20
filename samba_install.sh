@@ -15,6 +15,7 @@ export NCURSES_CONFIG_EMB
 export DESTDIR_ENV
 export INSTALL_PREFIX
 
+rm -rf ${DESTDIR_ENV}/*
 make configure_embedded
 make build_embedded
 make install_embedded
