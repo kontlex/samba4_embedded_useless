@@ -2,12 +2,12 @@
 .\"     Title: smb.conf
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 03/04/2015
+.\"      Date: 04/15/2015
 .\"    Manual: File Formats and Conventions
 .\"    Source: Samba 4.2
 .\"  Language: English
 .\"
-.TH "SMB\&.CONF" "5" "03/04/2015" "Samba 4\&.2" "File Formats and Conventions"
+.TH "SMB\&.CONF" "5" "04/15/2015" "Samba 4\&.2" "File Formats and Conventions"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -2079,9 +2079,13 @@ and other samba components acting as a client will attempt to use the server\-su
 .sp
 If enabled, Samba can attempt to use Kerberos to contact servers known only by IP address\&. Kerberos relies on names, so ordinarily cannot function in this situation\&.
 .sp
+This is a VERY BAD IDEA for security reasons, and so this parameter SHOULD NOT BE USED\&. It will be removed in a future version of Samba\&.
+.sp
 If disabled, Samba will use the name used to look up the server when asking the KDC for a ticket\&. This avoids situations where a server may impersonate another, soliciting authentication as one principal while being known on the network as another\&.
 .sp
 Note that Windows XP SP2 and later versions already follow this behaviour, and Windows Vista and later servers no longer supply this \*(Aqrfc4178 hint\*(Aq principal on the server side\&.
+.sp
+This parameter is deprecated in Samba 4\&.2\&.1 and will be removed (along with the functionality) in a later release of Samba\&.
 .sp
 Default:
 \fI\fIclient use spnego principal\fR\fR\fI = \fR\fIno\fR\fI \fR

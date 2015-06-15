@@ -43,7 +43,7 @@
 #include "lib/crypto/arcfour.h"
 #include <gnutls/gnutls.h>
 #include <gnutls/x509.h>
-#if HAVE_GCRYPT_H
+#if defined(HAVE_GCRYPT_H) && !defined(HAVE_GNUTLS3)
 #include <gcrypt.h>
 #endif
 
@@ -806,7 +806,7 @@ static WERROR create_heimdal_rsa_key(TALLOC_CTX *ctx, hx509_context *hctx,
 	*rsa = NULL;
 
 	gnutls_global_init();
-#ifdef HAVE_GCRYPT_H
+#if defined(HAVE_GCRYPT_H) && !defined(HAVE_GNUTLS3)
 	DEBUG(3,("Enabling QUICK mode in gcrypt\n"));
 	gcry_control(GCRYCTL_ENABLE_QUICK_RANDOM, 0);
 #endif
@@ -1492,8 +1492,8 @@ static WERROR bkrp_server_wrap_decrypt_data(struct dcesrv_call_state *dce_call, 
 		return WERR_INVALID_PARAM;
 	}
 
-	ndr_err = ndr_pull_struct_blob(&blob, mem_ctx, &decrypt_request,
-				       (ndr_pull_flags_fn_t)ndr_pull_bkrp_server_side_wrapped);
+	ndr_err = ndr_pull_struct_blob_all(&blob, mem_ctx, &decrypt_request,
+					   (ndr_pull_flags_fn_t)ndr_pull_bkrp_server_side_wrapped);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		return WERR_INVALID_PARAM;
 	}
@@ -1530,8 +1530,8 @@ static WERROR bkrp_server_wrap_decrypt_data(struct dcesrv_call_state *dce_call, 
 	
 	arcfour_crypt_blob(encrypted_blob.data, encrypted_blob.length, &symkey_blob);
 
-	ndr_err = ndr_pull_struct_blob(&encrypted_blob, mem_ctx, &rc4payload,
-				       (ndr_pull_flags_fn_t)ndr_pull_bkrp_rc4encryptedpayload);
+	ndr_err = ndr_pull_struct_blob_all(&encrypted_blob, mem_ctx, &rc4payload,
+					   (ndr_pull_flags_fn_t)ndr_pull_bkrp_rc4encryptedpayload);
 	if (!NDR_ERR_CODE_IS_SUCCESS(ndr_err)) {
 		return WERR_INVALID_PARAM;
 	}
