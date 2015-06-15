@@ -127,7 +127,7 @@ struct fruit_config_data {
 	bool unix_info_enabled;
 
 	/*
-	 * Additional undocumented options, all enabled by default,
+	 * Additional options, all enabled by default,
 	 * possibly useful for analyzing performance. The associated
 	 * operations with each of them may be expensive, so having
 	 * the chance to disable them individually gives a chance
@@ -568,7 +568,7 @@ static bool ad_pack(struct adouble *ad)
 /**
  * Unpack an AppleDouble blob into a struct adoble
  **/
-static bool ad_unpack(struct adouble *ad, const int nentries)
+static bool ad_unpack(struct adouble *ad, const int nentries, size_t filesize)
 {
 	size_t bufsize = talloc_get_size(ad->ad_data);
 	int adentries, i;
@@ -611,17 +611,74 @@ static bool ad_unpack(struct adouble *ad, const int nentries)
 			return false;
 		}
 
+		/*
+		 * All entries other than the resource fork are
+		 * expected to be read into the ad_data buffer, so
+		 * ensure the specified offset is within that bound
+		 */
 		if ((off > bufsize) && (eid != ADEID_RFORK)) {
 			DEBUG(1, ("bogus eid %d: off: %" PRIu32 ", len: %" PRIu32 "\n",
 				  eid, off, len));
 			return false;
 		}
+
+		/*
+		 * All entries besides FinderInfo and resource fork
+		 * must fit into the buffer. FinderInfo is special as
+		 * it may be larger then the default 32 bytes (if it
+		 * contains marshalled xattrs), but we will fixup that
+		 * in ad_convert(). And the resource fork is never
+		 * accessed directly by the ad_data buf (also see
+		 * comment above) anyway.
+		 */
 		if ((eid != ADEID_RFORK) &&
 		    (eid != ADEID_FINDERI) &&
 		    ((off + len) > bufsize)) {
 			DEBUG(1, ("bogus eid %d: off: %" PRIu32 ", len: %" PRIu32 "\n",
 				  eid, off, len));
 			return false;
+		}
+
+		/*
+		 * That would be obviously broken
+		 */
+		if (off > filesize) {
+			DEBUG(1, ("bogus eid %d: off: %" PRIu32 ", len: %" PRIu32 "\n",
+				  eid, off, len));
+			return false;
+		}
+
+		/*
+		 * Check for any entry that has its end beyond the
+		 * filesize.
+		 */
+		if (off + len < off) {
+			DEBUG(1, ("offset wrap in eid %d: off: %" PRIu32
+				  ", len: %" PRIu32 "\n",
+				  eid, off, len));
+			return false;
+
+		}
+		if (off + len > filesize) {
+			/*
+			 * If this is the resource fork entry, we fix
+			 * up the length, for any other entry we bail
+			 * out.
+			 */
+			if (eid != ADEID_RFORK) {
+				DEBUG(1, ("bogus eid %d: off: %" PRIu32
+					  ", len: %" PRIu32 "\n",
+					  eid, off, len));
+				return false;
+			}
+
+			/*
+			 * Fixup the resource fork entry by limiting
+			 * the size to entryoffset - filesize.
+			 */
+			len = filesize - off;
+			DEBUG(1, ("Limiting ADEID_RFORK: off: %" PRIu32
+				  ", len: %" PRIu32 "\n", off, len));
 		}
 
 		ad->ad_eid[eid].ade_off = off;
@@ -658,9 +715,11 @@ static int ad_convert(struct adouble *ad, int fd)
 		goto exit;
 	}
 
-	memmove(map + ad_getentryoff(ad, ADEID_FINDERI) + ADEDLEN_FINDERI,
-		map + ad_getentryoff(ad, ADEID_RFORK),
-		ad_getentrylen(ad, ADEID_RFORK));
+	if (ad_getentrylen(ad, ADEID_RFORK) > 0) {
+		memmove(map + ad_getentryoff(ad, ADEID_FINDERI) + ADEDLEN_FINDERI,
+			map + ad_getentryoff(ad, ADEID_RFORK),
+			ad_getentrylen(ad, ADEID_RFORK));
+	}
 
 	ad_setentrylen(ad, ADEID_FINDERI, ADEDLEN_FINDERI);
 	ad_setentryoff(ad, ADEID_RFORK,
@@ -718,7 +777,7 @@ static ssize_t ad_header_read_meta(struct adouble *ad, const char *path)
 	}
 
 	/* Now parse entries */
-	ok = ad_unpack(ad, ADEID_NUM_XATTR);
+	ok = ad_unpack(ad, ADEID_NUM_XATTR, AD_DATASZ_XATTR);
 	if (!ok) {
 		DEBUG(2, ("invalid AppleDouble metadata xattr\n"));
 		errno = EINVAL;
@@ -845,8 +904,16 @@ static ssize_t ad_header_read_rsrc(struct adouble *ad, const char *path)
 			goto exit;
 		}
 
+		/* FIXME: direct sys_fstat(), we don't have an fsp */
+		rc = sys_fstat(fd, &sbuf,
+			       lp_fake_directory_create_times(
+				       SNUM(ad->ad_handle->conn)));
+		if (rc != 0) {
+			goto exit;
+		}
+
 		/* Now parse entries */
-		ok = ad_unpack(ad, ADEID_NUM_DOT_UND);
+		ok = ad_unpack(ad, ADEID_NUM_DOT_UND, sbuf.st_ex_size);
 		if (!ok) {
 			DEBUG(1, ("invalid AppleDouble ressource %s\n", path));
 			errno = EINVAL;
@@ -1267,6 +1334,10 @@ static int init_fruit_config(vfs_handle_struct *handle)
 
 	if (lp_parm_bool(-1, FRUIT_PARAM_TYPE_NAME, "aapl", true)) {
 		config->use_aapl = true;
+	}
+
+	if (lp_parm_bool(-1, FRUIT_PARAM_TYPE_NAME, "nfs_aces", true)) {
+		config->unix_info_enabled = true;
 	}
 
 	if (lp_parm_bool(SNUM(handle->conn),
@@ -1762,8 +1833,9 @@ static NTSTATUS check_aapl(vfs_handle_struct *handle,
 		 * The client doesn't set the flag, so we can't check
 		 * for it and just set it unconditionally
 		 */
-		server_caps |= SMB2_CRTCTX_AAPL_SUPPORTS_NFS_ACE;
-		config->unix_info_enabled = true;
+		if (config->unix_info_enabled) {
+			server_caps |= SMB2_CRTCTX_AAPL_SUPPORTS_NFS_ACE;
+		}
 
 		SBVAL(p, 0, server_caps);
 		ok = data_blob_append(req, &blob, p, 8);
@@ -1972,6 +2044,14 @@ static int fruit_connect(vfs_handle_struct *handle,
 		lp_do_parameter(
 			SNUM(handle->conn),
 			"catia:mappings",
+			"0x01:0xf001,0x02:0xf002,0x03:0xf003,0x04:0xf004,"
+			"0x05:0xf005,0x06:0xf006,0x07:0xf007,0x08:0xf008,"
+			"0x09:0xf009,0x0a:0xf00a,0x0b:0xf00b,0x0c:0xf00c,"
+			"0x0d:0xf00d,0x0e:0xf00e,0x0f:0xf00f,0x10:0xf010,"
+			"0x11:0xf011,0x12:0xf012,0x13:0xf013,0x14:0xf014,"
+			"0x15:0xf015,0x16:0xf016,0x17:0xf017,0x18:0xf018,"
+			"0x19:0xf019,0x1a:0xf01a,0x1b:0xf01b,0x1c:0xf01c,"
+			"0x1d:0xf01d,0x1e:0xf01e,0x1f:0xf01f,"
 			"0x22:0xf020,0x2a:0xf021,0x3a:0xf022,0x3c:0xf023,"
 			"0x3e:0xf024,0x3f:0xf025,0x5c:0xf026,0x7c:0xf027,"
 			"0x0d:0xf00d");

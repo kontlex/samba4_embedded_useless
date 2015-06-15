@@ -99,3 +99,20 @@ conf.CHECK_CODE('struct statvfs buf; buf.f_flags = 0',
                 headers='sys/statvfs.h',
                 local_include=False,
                 execute=False)
+
+#
+# systemd removed the libsystemd-daemon and libsystemd-journal libraries. In newer
+# versions it is only libsystemd. As waf pkg-config handling does not provide
+# targets which could be used as a dependency based on the package name we need
+# to look for them on our own. This enabled one of the library targets based on
+# which version we detect.
+#
+conf.SET_TARGET_TYPE('systemd-daemon', 'EMPTY')
+conf.SET_TARGET_TYPE('systemd-journal', 'EMPTY')
+conf.SET_TARGET_TYPE('systemd', 'EMPTY')
+
+if Options.options.enable_systemd != False:
+    conf.check_cfg(package='libsystemd-daemon', args='--cflags --libs',
+                   msg='Checking for libsystemd-daemon')
+    if not conf.CHECK_LIB('systemd-daemon', shlib=True):
+        conf.CHECK_LIB('systemd', shlib=True)

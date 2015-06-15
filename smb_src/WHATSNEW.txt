@@ -1,4 +1,248 @@
                    =============================
+                   Release Notes for Samba 4.2.2
+                           May 27, 2015
+                   =============================
+
+
+This is the latest stable release of Samba 4.2.
+
+
+Changes since 4.2.1:
+--------------------
+
+o   Michael Adam <obnox@samba.org>
+    * BUG 11182: s3:smbXsrv: refactor duplicate code into
+      smbXsrv_session_clear_and_logoff().
+    * BUG 11260: gencache: don't fail gencache_stabilize if there were records
+      to delete.
+
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 11186: s3: libsmbclient: After getting attribute server, ensure main
+      srv pointer is still valid.
+    * BUG 11236: s4: rpc: Refactor dcesrv_alter() function into setup and send
+      steps.
+    * BUG 11240: s3: smbd: Incorrect file size returned in the response of
+      "FILE_SUPERSEDE Create".
+    * BUG 11249: Mangled names do not work with acl_xattr.
+    * BUG 11254: nmbd rewrites browse.dat when not required.
+
+
+o   Ralph Boehme <slow@samba.org>
+    * BUG 11213: vfs_fruit: add option "nfs_aces" that controls the NFS ACEs
+      stuff.
+    * BUG 11224: s3:smbd: Add missing tevent_req_nterror.
+    * BUG 11243: vfs: kernel_flock and named streams.
+    * BUG 11244: vfs_gpfs: Error code path doesn't call END_PROFILE.
+
+
+o   Alexander Bokovoy <ab@samba.org>
+    * BUG 11284: s4: libcli/finddcs_cldap: continue processing CLDAP until all
+      addresses are used.
+
+
+o   David Disseldorp <ddiss@samba.org>
+    * BUG 11201: ctdb: check for talloc_asprintf() failure.:w
+    * BUG 11210: spoolss: purge the printer name cache on name change.
+
+
+o   Amitay Isaacs <amitay@gmail.com>
+    * BUG 11204: CTDB statd-callout does not scale.
+
+
+o   Björn Jacke <bj@sernet.de>
+    * BUG 11221: vfs_fruit: also map characters below 0x20.
+
+
+o   Rajesh Joseph <rjoseph@redhat.com>
+    * BUG 11201: ctdb: Coverity fix for CID 1291643.
+
+
+o   Julien Kerihuel <j.kerihuel@openchange.org>
+    * BUG 11225: Multiplexed RPC connections are not handled by DCERPC server.
+    * BUG 11226: Fix terminate connection behavior for asynchronous endpoint
+      with PUSH notification flavors.
+
+
+o   Led <ledest@gmail.com>
+    * BUG 11007: ctdb-scripts: Fix bashism in ctdbd_wrapper script.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 11201: ctdb: Fix CIDs 1125615, 1125634, 1125613, 1288201 and 1125553.
+    * BUG 11257: SMB2 should cancel pending NOTIFY calls with DELETE_PENDING if
+      the directory is deleted.
+
+
+o   Stefan Metzmacher <metze@samba.org>
+    * BUG 11141: s3:winbindd: make sure we remove pending io requests before
+      closing client sockets.
+    * BUG 11182: Fix panic triggered by smbd_smb2_request_notify_done() ->
+      smbXsrv_session_find_channel() in smbd.
+
+
+o   Christof Schmitt <cs@samba.org>
+    * BUG 11237: 'sharesec' output no longer matches input format.
+
+
+o   Andreas Schneider <asn@samba.org>
+    * BUG 11200: waf: Fix systemd detection.
+
+
+o   Martin Schwenke <martin@meltin.net>
+    * BUG 11202: CTDB: Fix portability issues.
+    * BUG 11203: CTDB: Fix some IPv6-related issues.
+    * BUG 11204: CTDB statd-callout does not scale.
+
+
+o   Richard Sharpe <rsharpe@nutanix.com>
+    * BUG 11234: 'net ads dns gethostbyname' crashes with an error in TALLOC_FREE
+      if you enter invalid values.
+
+
+o   Uri Simchoni <urisimchoni@gmail.com>
+    * BUG 11267: libads: record service ticket endtime for sealed ldap
+      connections.
+
+
+o   Lukas Slebodnik <lslebodn@redhat.com>
+    * BUG 11033: lib/util: Include DEBUG macro in internal header files before
+      samba_util.h.
+
+
+#######################################
+Reporting bugs & Development Discussion
+#######################################
+
+Please discuss this release on the samba-technical mailing list or by
+joining the #samba-technical IRC channel on irc.freenode.net.
+
+If you do report problems then please try to send high quality
+feedback. If you don't provide vital information to help us track down
+the problem then you will probably be ignored.  All bug reports should
+be filed under the Samba 4.2 product in the project's Bugzilla
+database (https://bugzilla.samba.org/).
+
+
+======================================================================
+== Our Code, Our Bugs, Our Responsibility.
+== The Samba Team
+======================================================================
+
+
+Release notes for older releases follow:
+----------------------------------------
+
+======================================================================
+
+                   =============================
+                   Release Notes for Samba 4.2.1
+                           April 15, 2015
+                   =============================
+
+
+This is the latest stable release of Samba 4.2.
+
+
+Changes since 4.2.0:
+--------------------
+
+o   Michael Adam <obnox@samba.org>
+    * BUG 8905: s3:winbind:grent: Don't stop group enumeration when a group has
+      no gid.
+    * BUG 10476: build:wafadmin: Fix use of spaces instead of tabs.
+    * BUG 11143: s3-winbind: Fix cached user group lookup of trusted domains.
+
+
+o   Jeremy Allison <jra@samba.org>
+    * BUG 10016: s3: lib: ntlmssp: If NTLMSSP_NEGOTIATE_TARGET_INFO isn't set,
+      cope with servers that don't send the 2 unused fields.
+    * BUG 10888: s3: client: "client use spnego principal = yes" code checks
+      wrong name.
+    * BUG 11079: s3: lib: libsmbclient: If reusing a server struct, check every
+      cli->timout miliseconds if it's still valid before use.
+    * BUG 11173: s3: libcli: smb1: Ensure we correctly finish a tevent req if
+      the writev fails in the SMB1 case.
+    * BUG 11175: Fix lots of winbindd zombie processes on Solaris platform.
+    * BUG 11177: s3: libsmbclient: Add missing talloc stackframe.
+
+
+o   Andrew Bartlett <abartlet@samba.org>
+    * BUG 11135: backupkey: Explicitly link to gnutls and gcrypt.
+    * BUG 11174: backupkey: Use ndr_pull_struct_blob_all().
+
+
+o   Ralph Boehme <slow@samba.org>
+    * BUG 11125: vfs_fruit: Enhance handling of malformed AppleDouble files.
+
+
+o   Samuel Cabrero <samuelcabrero@kernevil.me>
+    * BUG 9791: Initialize dwFlags field of DNS_RPC_NODE structure.
+
+
+o   David Disseldorp <ddiss@samba.org>
+    * BUG 11169: docs/idmap_rid: Remove deprecated base_rid from example.
+
+
+o   Volker Lendecke <vl@samba.org>
+    * BUG 10476: waf: Fix the build on openbsd.
+
+
+o   Stefan Metzmacher <metze@samba.org>
+    * BUG 11144: talloc: Version 2.1.2.
+    * BUG 11164: s4:auth/gensec_gssapi: Let gensec_gssapi_update() return
+      NT_STATUS_LOGON_FAILURE for unknown errors.
+
+
+o   Matthew Newton <matthew-git@newtoncomputing.co.uk>
+    * BUG 11149: Update libwbclient version to 0.12.
+
+
+o   Andreas Schneider <asn@samba.org>
+    * BUG 11018: spoolss: Retrieve published printer GUID if not in registry.
+    * BUG 11135: replace: Remove superfluous check for gcrypt header.
+    * BUG 11180: s4-process_model: Do not close random fds while forking.
+    * BUG 11185: s3-passdb: Fix 'force user' with winbind default domain.
+
+
+o   Christof Schmitt <cs@samba.org>
+    * BUG 11153: brlock: Use 0 instead of empty initializer list.
+
+
+o   Thomas Schulz <schulz@adi.com>
+    * BUG 11092: lib: texpect: Fix the build on Solaris.
+    * BUG 11140: libcli/auth: Match Declaration of
+      netlogon_creds_cli_context_tmp with implementation.
+
+
+o   Jelmer Vernooij <jelmer@samba.org>
+    * BUG 11137: Backport subunit changes.
+
+
+#######################################
+Reporting bugs & Development Discussion
+#######################################
+
+Please discuss this release on the samba-technical mailing list or by
+joining the #samba-technical IRC channel on irc.freenode.net.
+
+If you do report problems then please try to send high quality
+feedback. If you don't provide vital information to help us track down
+the problem then you will probably be ignored.  All bug reports should
+be filed under the Samba 4.2 product in the project's Bugzilla
+database (https://bugzilla.samba.org/).
+
+
+======================================================================
+== Our Code, Our Bugs, Our Responsibility.
+== The Samba Team
+======================================================================
+
+
+----------------------------------------------------------------------
+
+
+                   =============================
                    Release Notes for Samba 4.2.0
                            March 04, 2015
                    =============================

@@ -212,8 +212,6 @@ def configure(conf):
             conf.ADD_EXTRA_INCLUDES('#ctdb')
         conf.ADD_EXTRA_INCLUDES('#lib #lib/replace')
 
-        conf.SET_TARGET_TYPE('systemd-daemon', 'EMPTY')
-
         del(conf.env.defines['PYTHONDIR'])
         del(conf.env.defines['PYTHONARCHDIR'])
 
@@ -625,7 +623,8 @@ def build(bld):
     test_eventscript_links = [
         'events.d',
         'functions',
-        'nfs-rpc-checks.d'
+        'nfs-rpc-checks.d',
+        'statd-callout'
     ]
 
     test_link_dir = os.path.join(bld.env.CTDB_TEST_DATADIR,
@@ -650,7 +649,8 @@ def test(ctx):
 
 
 def autotest(ctx):
-    cmd = 'LD_PRELOAD=bin/shared/libsocket-wrapper.so tests/run_tests.sh -e -S -C'
+    ld = 'LD_PRELOAD=%s/bin/shared/libsocket-wrapper.so' % os.getcwd()
+    cmd = '%s tests/run_tests.sh -e -S -C' % ld
     ret = samba_utils.RUN_COMMAND(cmd)
     if ret != 0:
         print('autotest exited with exit status %d' % ret)

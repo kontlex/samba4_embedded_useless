@@ -161,6 +161,8 @@ _service ()
 
   if [ -x /sbin/service ]; then
       $_nice /sbin/service "$_service_name" "$_op"
+  elif [ -x /usr/sbin/service ]; then
+      $_nice /usr/sbin/service "$_service_name" "$_op"
   elif [ -x $CTDB_ETCDIR/init.d/$_service_name ]; then
       $_nice $CTDB_ETCDIR/init.d/$_service_name "$_op"
   elif [ -x $CTDB_ETCDIR/rc.d/init.d/$_service_name ]; then
@@ -654,6 +656,16 @@ get_tcp_connections_for_ip ()
 	 {print $4" "$5}'
 }
 
+##################################################################
+# use statd-callout to update NFS lock info
+##################################################################
+nfs_update_lock_info ()
+{
+    if [ -x "$CTDB_BASE/statd-callout" ] ; then
+	"$CTDB_BASE/statd-callout" update
+    fi
+}
+
 ########################################################
 # start/stop the Ganesha nfs service
 ########################################################
@@ -805,23 +817,6 @@ startstop_nfslock() {
 	esac
 }
 
-# Periodically update the statd database
-nfs_statd_update ()
-{
-    _update_period="$1"
-
-    _statd_update_trigger="$service_state_dir/update-trigger"
-    [ -f "$_statd_update_trigger" ] || touch "$_statd_update_trigger"
-
-    _last_update=$(stat --printf="%Y" "$_statd_update_trigger")
-    _current_time=$(date +"%s")
-    if [ $(( $_current_time - $_last_update)) -ge $_update_period ] ; then
-	touch "$_statd_update_trigger"
-	$CTDB_BASE/statd-callout updatelocal &
-	$CTDB_BASE/statd-callout updateremote &
-    fi
-}
-
 ########################################################
 
 add_ip_to_iface ()
@@ -888,7 +883,7 @@ delete_ip_from_iface()
     }
 }
 
-# If the given IP is hosted then print 2 items: maskbits and iface 
+# If the given IP is hosted then print 2 items: maskbits and iface
 ip_maskbits_iface ()
 {
     _addr="$1"
@@ -900,8 +895,9 @@ ip_maskbits_iface ()
 
     ip addr show to "${_addr}/${_bits}" 2>/dev/null | \
 	awk -v family="${_family}" \
-	    'NR == 1 { iface = gensub(":$", "", 1, $2) } \
-             $1 ~ /inet/ { print gensub(".*/", "", 1, $2), iface, family }'
+	    'NR == 1 { iface = $2; sub(":$", "", iface) } \
+             $1 ~ /inet/ { mask = $2; sub(".*/", "", mask); \
+                           print mask, iface, family }'
 }
 
 drop_ip ()
@@ -1365,23 +1361,17 @@ ctdb_standard_event_handler ()
     esac
 }
 
-# iptables doesn't like being re-entered, so flock-wrap it.
-iptables ()
-{
-	flock -w 30 $CTDB_VARDIR/iptables-ctdb.flock /sbin/iptables "$@"
-}
-ip6tables ()
-{
-	flock -w 30 $CTDB_VARDIR/iptables-ctdb.flock /sbin/ip6tables "$@"
-}
 iptables_wrapper ()
 {
     _family="$1" ; shift
     if [ "$_family" = "inet6" ] ; then
-	ip6tables "$@"
+	_iptables_cmd="ip6tables"
     else
-	iptables "$@"
+	_iptables_cmd="iptables"
     fi
+
+    # iptables doesn't like being re-entered, so flock-wrap it.
+    flock -w 30 "${CTDB_VARDIR}/iptables-ctdb.flock" "$_iptables_cmd" "$@"
 }
 
 # AIX (and perhaps others?) doesn't have mktemp
