@@ -2,7 +2,7 @@
 top_dir=$(pwd)
 smb4_minimal_dir=${top_dir}/smb4_minimal_dir
 smb4_full_dir=${top_dir}/smb_bin
-INSTALL_PREFIX=/${C_SAMBA_PREFIX}
+INSTALL_PREFIX=/${SAMBA_PREFIX}
 
 filename='liblist_full.config'
 
@@ -20,3 +20,4 @@ done < $filename
 
 mv ${smb4_minimal_dir}/${INSTALL_PREFIX}/smb4/lib/private/* ${smb4_minimal_dir}/${INSTALL_PREFIX}/smb4/lib/
 rm -rf ${smb4_minimal_dir}/${INSTALL_PREFIX}/smb4/lib/private
+
