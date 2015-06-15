@@ -160,7 +160,7 @@ static struct ctdb_scripts_wire *ctdb_get_script_list(struct ctdb_context *ctdb,
 {
 	struct dirent **namelist;
 	struct ctdb_scripts_wire *scripts;
-	int count;
+	int i, count;
 
 	/* scan all directory entries and insert all valid scripts into the 
 	   tree
@@ -178,19 +178,30 @@ static struct ctdb_scripts_wire *ctdb_get_script_list(struct ctdb_context *ctdb,
 				   + sizeof(scripts->scripts[0]) * count);
 	if (scripts == NULL) {
 		DEBUG(DEBUG_ERR, (__location__ " Failed to allocate scripts\n"));
-		free(namelist);
-		return NULL;
+		goto done;
 	}
 	scripts->num_scripts = count;
 
-	for (count = 0; count < scripts->num_scripts; count++) {
-		strcpy(scripts->scripts[count].name, namelist[count]->d_name);
-		scripts->scripts[count].status = 0;
-		if (!check_executable(ctdb->event_script_dir, namelist[count]->d_name)) {
-			scripts->scripts[count].status = -errno;
+	for (i = 0; i < count; i++) {
+		struct ctdb_script_wire *s = &scripts->scripts[i];
+
+		if (strlcpy(s->name, namelist[i]->d_name, sizeof(s->name)) >=
+		    sizeof(s->name)) {
+			s->status = -ENAMETOOLONG;
+			continue;
+		}
+
+		s->status = 0;
+		if (!check_executable(ctdb->event_script_dir,
+				      namelist[i]->d_name)) {
+			s->status = -errno;
 		}
 	}
 
+done:
+	for (i=0; i<count; i++) {
+		free(namelist[i]);
+	}
 	free(namelist);
 	return scripts;
 }
@@ -333,6 +344,7 @@ static int script_status(struct ctdb_scripts_wire *scripts)
 
 	for (i = 0; i < scripts->num_scripts; i++) {
 		switch (scripts->scripts[i].status) {
+		case -ENAMETOOLONG:
 		case -ENOENT:
 		case -ENOEXEC:
 			/* Disabled or missing; that's OK. */
@@ -446,10 +458,6 @@ static void ctdb_run_debug_hung_script(struct ctdb_context *ctdb, struct debug_h
 	struct tevent_fd *tfd;
 	const char **argv;
 	int i;
-
-	if (helper_prog == NULL) {
-		return;
-	}
 
 	if (pipe(fd) < 0) {
 		DEBUG(DEBUG_ERR,("Failed to create pipe fd for debug hung script\n"));

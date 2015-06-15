@@ -519,6 +519,9 @@ NTSTATUS change_notify_add_request(struct smb_request *req,
 				void (*reply_fn)(struct smb_request *req,
 					NTSTATUS error_code,
 					uint8_t *buf, size_t len));
+void smbd_notify_cancel_deleted(struct messaging_context *msg,
+				void *private_data, uint32_t msg_type,
+				struct server_id server_id, DATA_BLOB *data);
 void remove_pending_change_notify_requests_by_mid(
 	struct smbd_server_connection *sconn, uint64_t mid);
 void remove_pending_change_notify_requests_by_fid(files_struct *fsp,
@@ -1175,6 +1178,8 @@ NTSTATUS check_reduced_name_with_privilege(connection_struct *conn,
 int vfs_stat_smb_fname(struct connection_struct *conn, const char *fname,
 		       SMB_STRUCT_STAT *psbuf);
 int vfs_lstat_smb_fname(struct connection_struct *conn, const char *fname,
+			SMB_STRUCT_STAT *psbuf);
+int vfs_stat_smb_basename(struct connection_struct *conn, const char *fname,
 			SMB_STRUCT_STAT *psbuf);
 NTSTATUS vfs_stat_fsp(files_struct *fsp);
 NTSTATUS vfs_chown_fsp(files_struct *fsp, uid_t uid, gid_t gid);

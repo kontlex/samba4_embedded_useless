@@ -9,6 +9,10 @@ EVENTSCRIPTS_PATH=""
 
 if [ -d "${TEST_SUBDIR}/stubs" ] ; then
     EVENTSCRIPTS_PATH="${TEST_SUBDIR}/stubs"
+    case "$EVENTSCRIPTS_PATH" in
+	/*) : ;;
+	*) EVENTSCRIPTS_PATH="${PWD}/${EVENTSCRIPTS_PATH}" ;;
+    esac
 fi
 
 export EVENTSCRIPTS_PATH
@@ -271,6 +275,33 @@ ctdb_set_output ()
     eventscripts_test_add_cleanup "rm -f $_out $_rc"
 }
 
+# For now this creates the same public addresses each time.  However,
+# it could be made more flexible.
+setup_public_addresses ()
+{
+    if [ -f "$CTDB_PUBLIC_ADDRESSES" -a \
+	    "${CTDB_PUBLIC_ADDRESSES%/*}" = "$EVENTSCRIPTS_TESTS_VAR_DIR" ] ; then
+	rm "$CTDB_PUBLIC_ADDRESSES"
+    fi
+
+    export CTDB_PUBLIC_ADDRESSES=$(mktemp \
+				       --tmpdir="$EVENTSCRIPTS_TESTS_VAR_DIR" \
+				       "public-addresses-XXXXXXXX")
+
+    echo "Setting up CTDB_PUBLIC_ADDRESSES=${CTDB_PUBLIC_ADDRESSES}"
+    cat >"$CTDB_PUBLIC_ADDRESSES" <<EOF
+10.0.0.1/24 dev123
+10.0.0.2/24 dev123
+10.0.0.3/24 dev123
+10.0.0.4/24 dev123
+10.0.0.5/24 dev123
+10.0.0.6/24 dev123
+10.0.1.1/24 dev456
+10.0.1.2/24 dev456
+10.0.1.3/24 dev456
+EOF
+}
+
 setup_ctdb ()
 {
     setup_generic
@@ -281,17 +312,7 @@ setup_ctdb ()
     export FAKE_CTDB_PNN="${2:-0}"
     echo "Setting up CTDB with PNN ${FAKE_CTDB_PNN}"
 
-    export CTDB_PUBLIC_ADDRESSES="${CTDB_BASE}/public_addresses"
-    if [ -n "$3" ] ; then
-	echo "Setting up CTDB_PUBLIC_ADDRESSES: $3"
-	CTDB_PUBLIC_ADDRESSES=$(mktemp)
-	for _i in $3 ; do
-	    _ip="${_i%@*}"
-	    _ifaces="${_i#*@}"
-	    echo "${_ip} ${_ifaces}" >>"$CTDB_PUBLIC_ADDRESSES"
-	done
-	eventscripts_test_add_cleanup "rm -f $CTDB_PUBLIC_ADDRESSES"
-    fi
+    setup_public_addresses
 
     export FAKE_CTDB_STATE="$EVENTSCRIPTS_TESTS_VAR_DIR/fake-ctdb"
 
@@ -500,6 +521,65 @@ default via $_gw dev $_dev "
 EOF
 
 	simple_test_command dump_routes
+    }
+}
+
+######################################################################
+
+ctdb_catdb_format_pairs ()
+{
+    _count=0
+
+    while read _k _v ; do
+	_kn=$(echo -n "$_k" | wc -c)
+	_vn=$(echo -n "$_v" | wc -c)
+	cat <<EOF
+key(${_kn}) = "${_k}"
+dmaster: 0
+rsn: 1
+data(${_vn}) = "${_v}"
+
+EOF
+	_count=$(($_count + 1))
+    done
+
+    echo "Dumped ${_count} records"
+}
+
+check_ctdb_tdb_statd_state ()
+{
+    ctdb_get_my_public_addresses |
+    while read _x _sip _x ; do
+	for _cip ; do
+	    echo "statd-state@${_sip}@${_cip}" "$FAKE_DATE_OUTPUT"
+	done
+    done |
+    ctdb_catdb_format_pairs | {
+	ok
+	simple_test_command ctdb catdb ctdb.tdb
+    }
+}
+
+check_statd_callout_smnotify ()
+{
+    _state_even=$(( $(date '+%s') / 2 * 2))
+    _state_odd=$(($_state_even + 1))
+
+    nfs_load_config
+
+    ctdb_get_my_public_addresses |
+    while read _x _sip _x ; do
+	for _cip ; do
+	    cat <<EOF
+--client=${_cip} --ip=${_sip} --server=${_sip} --stateval=${_state_even}
+--client=${_cip} --ip=${_sip} --server=${NFS_HOSTNAME} --stateval=${_state_even}
+--client=${_cip} --ip=${_sip} --server=${_sip} --stateval=${_state_odd}
+--client=${_cip} --ip=${_sip} --server=${NFS_HOSTNAME} --stateval=${_state_odd}
+EOF
+	done
+    done | {
+	ok
+	simple_test_event "notify"
     }
 }
 
@@ -777,6 +857,19 @@ rpc_services_up ()
     done
 }
 
+
+nfs_load_config ()
+{
+    _etc="$CTDB_ETCDIR" # shortcut for readability
+    for _c in "$_etc/sysconfig/nfs" "$_etc/default/nfs" "$_etc/ctdb/sysconfig/nfs" ; do
+	if [ -r "$_c" ] ; then
+	    . "$_c"
+	    break
+	fi
+    done
+}
+
+
 # Set the required result for a particular RPC program having failed
 # for a certain number of iterations.  This is probably still a work
 # in progress.  Note that we could hook aggressively
@@ -793,13 +886,7 @@ rpc_set_service_failure_response ()
     # the flexibility to set the number of failures.
     _numfails="${2:-${iteration}}"
 
-    _etc="$CTDB_ETCDIR" # shortcut for readability
-    for _c in "$_etc/sysconfig/nfs" "$_etc/default/nfs" "$_etc/ctdb/sysconfig/nfs" ; do
-	if [ -r "$_c" ] ; then
-	    . "$_c"
-	    break
-	fi
-    done
+    nfs_load_config
 
     # A handy newline.  :-)
     _nl="
@@ -969,18 +1056,31 @@ define_test ()
     # Remaining format should be NN.service.event.NNN or NN.service.NNN:
     _num="${_f##*.}"
     _f="${_f%.*}"
+
     case "$_f" in
-	*.*.*)
+	[0-9][0-9].*.*)
 	    script="${_f%.*}"
 	    event="${_f##*.}"
+	    script_dir="${CTDB_BASE}/events.d"
 	    ;;
-	*.*)
+	[0-9][0-9].*)
 	    script="$_f"
 	    unset event
+	    script_dir="${CTDB_BASE}/events.d"
+	    ;;
+	*.*)
+	    script="${_f%.*}"
+	    event="${_f##*.}"
+	    script_dir="${CTDB_BASE}"
 	    ;;
 	*)
-	    die "Internal error - unknown testcase filename format"
+	    script="${_f%.*}"
+	    unset event
+	    script_dir="${CTDB_BASE}"
     esac
+
+    [ -x "${script_dir}/${script}" ] || \
+	die "Internal error - unable to find script \"${script_dir}/${script}\""
 
     printf "%-17s %-10s %-4s - %s\n\n" "$script" "$event" "$_num" "$desc"
 }
@@ -1006,14 +1106,14 @@ simple_test ()
 
     _extra_header=$(_extra_header)
 
-    echo "Running eventscript \"$script $event${1:+ }$*\""
+    echo "Running script \"$script $event${1:+ }$*\""
     _shell=""
     if $TEST_COMMAND_TRACE ; then
 	_shell="sh -x"
     else
 	_shell="sh"
     fi
-    _out=$($_shell "${CTDB_BASE}/events.d/$script" "$event" "$@" 2>&1)
+    _out=$($_shell "${script_dir}/${script}" "$event" "$@" 2>&1)
 
     result_check "$_extra_header"
 }
@@ -1112,7 +1212,7 @@ iterate_test ()
 	else
 	    _shell="sh"
 	fi
-	_out=$($_shell "${CTDB_BASE}/events.d/$script" "$event" $args 2>&1)
+	_out=$($_shell "${script_dir}/${script}" "$event" $args 2>&1)
 	_rc=$?
 
 	_fout=$(echo "$_out" | result_filter)

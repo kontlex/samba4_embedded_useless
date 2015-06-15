@@ -127,7 +127,7 @@ struct fruit_config_data {
 	bool unix_info_enabled;
 
 	/*
-	 * Additional undocumented options, all enabled by default,
+	 * Additional options, all enabled by default,
 	 * possibly useful for analyzing performance. The associated
 	 * operations with each of them may be expensive, so having
 	 * the chance to disable them individually gives a chance
@@ -1336,6 +1336,10 @@ static int init_fruit_config(vfs_handle_struct *handle)
 		config->use_aapl = true;
 	}
 
+	if (lp_parm_bool(-1, FRUIT_PARAM_TYPE_NAME, "nfs_aces", true)) {
+		config->unix_info_enabled = true;
+	}
+
 	if (lp_parm_bool(SNUM(handle->conn),
 			 "readdir_attr", "aapl_rsize", true)) {
 		config->readdir_attr_rsize = true;
@@ -1829,8 +1833,9 @@ static NTSTATUS check_aapl(vfs_handle_struct *handle,
 		 * The client doesn't set the flag, so we can't check
 		 * for it and just set it unconditionally
 		 */
-		server_caps |= SMB2_CRTCTX_AAPL_SUPPORTS_NFS_ACE;
-		config->unix_info_enabled = true;
+		if (config->unix_info_enabled) {
+			server_caps |= SMB2_CRTCTX_AAPL_SUPPORTS_NFS_ACE;
+		}
 
 		SBVAL(p, 0, server_caps);
 		ok = data_blob_append(req, &blob, p, 8);
@@ -2039,6 +2044,14 @@ static int fruit_connect(vfs_handle_struct *handle,
 		lp_do_parameter(
 			SNUM(handle->conn),
 			"catia:mappings",
+			"0x01:0xf001,0x02:0xf002,0x03:0xf003,0x04:0xf004,"
+			"0x05:0xf005,0x06:0xf006,0x07:0xf007,0x08:0xf008,"
+			"0x09:0xf009,0x0a:0xf00a,0x0b:0xf00b,0x0c:0xf00c,"
+			"0x0d:0xf00d,0x0e:0xf00e,0x0f:0xf00f,0x10:0xf010,"
+			"0x11:0xf011,0x12:0xf012,0x13:0xf013,0x14:0xf014,"
+			"0x15:0xf015,0x16:0xf016,0x17:0xf017,0x18:0xf018,"
+			"0x19:0xf019,0x1a:0xf01a,0x1b:0xf01b,0x1c:0xf01c,"
+			"0x1d:0xf01d,0x1e:0xf01e,0x1f:0xf01f,"
 			"0x22:0xf020,0x2a:0xf021,0x3a:0xf022,0x3c:0xf023,"
 			"0x3e:0xf024,0x3f:0xf025,0x5c:0xf026,0x7c:0xf027,"
 			"0x0d:0xf00d");

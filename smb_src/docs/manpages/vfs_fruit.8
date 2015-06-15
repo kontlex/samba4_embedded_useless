@@ -2,12 +2,12 @@
 .\"     Title: vfs_fruit
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 04/15/2015
+.\"      Date: 05/27/2015
 .\"    Manual: System Administration tools
 .\"    Source: Samba 4.2
 .\"  Language: English
 .\"
-.TH "VFS_FRUIT" "8" "04/15/2015" "Samba 4\&.2" "System Administration tools"
+.TH "VFS_FRUIT" "8" "05/27/2015" "Samba 4\&.2" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -268,6 +268,12 @@ readdir_attr:aapl_max_access = true | false
 .RE
 .sp
 .RE
+.RE
+.PP
+fruit:nfs_aces = yes | no
+.RS 4
+Whether support for querying and modifying the UNIX mode of directory entries via NFS ACEs is enabled, default
+\fIyes\fR\&.
 .RE
 .SH "EXAMPLES"
 .sp
