@@ -16,7 +16,7 @@ CROSS_EXECUTE=qemu-arm -L $(QEMU_PATH_ENV)
 #python_ROOT_DIR_EMB=
 
 #configure options for all builds
-CONF_OPTIONS_COMMON=--prefix=$(INSTALL_PREFIX)/smb4 --without-ldap --without-ad-dc --without-ads --without-acl --disable-cups --without-gettext --without-winbind --disable-iprint --without-pam --without-pam_smbpass --without-quotas --without-utmp --disable-avahi --without-iconv --without-dnsupdate --without-syslog --with-aio-support --nopyc --nopyo
+CONF_OPTIONS_COMMON=--prefix=$(INSTALL_PREFIX)/smb4 --without-ldap --without-ad-dc --without-ads --without-acl --disable-cups --without-gettext --without-winbind --disable-iprint --without-pam --without-pam_smbpass --without-quotas --without-utmp --disable-avahi --without-iconv --without-dnsupdate --without-syslog --with-aio-support --nopyc --nopyo --enable-debug
 
 all:
 	$(WAF) build
