@@ -1,4 +1,7 @@
-. ./tc_parameters.sh
+
+if [ -f ./tc_parameters.sh ]; then
+    . ./tc_parameters.sh
+fi
 
 top_dir=$(pwd)
 cd ./smb_src
