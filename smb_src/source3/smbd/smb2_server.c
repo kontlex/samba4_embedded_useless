@@ -1301,10 +1301,9 @@ NTSTATUS smbd_smb2_request_pending_queue(struct smbd_smb2_request *req, struct t
 	if (req->current_idx > 1)
 	{
 
-		if (DEBUGLEVEL>= 10)
-		{
+
 			dbgtext("smbd_smb2_request_pending_queue: if (req->current_idx > 1) enter\n");
-		}
+
 		/*
 		 * We're going async in a compound
 		 * chain after the first request has
@@ -1360,35 +1359,29 @@ NTSTATUS smbd_smb2_request_pending_queue(struct smbd_smb2_request *req, struct t
 	}
 	if (req->last_key.length > 0)
 	{
-		if (DEBUGLEVEL>= 10)
-		{
+
 			dbgtext("smbd_smb2_request_pending_queue: if (req->last_key.length > 0) { enter\n");
-		}
+
 		data_blob_clear_free(&req->last_key);
 	}
 
-	if (DEBUGLEVEL>= 10)
-	{
 		dbgtext("smbd_smb2_request_pending_queue: defer_endtime = timeval_current_ofs_usec(defer_time);\n");
-	}
+
 	defer_endtime = timeval_current_ofs_usec(defer_time);
-	if (DEBUGLEVEL>= 10)
-	{
+
 		dbgtext("smbd_smb2_request_pending_queue: tevent_add_timer\n");
-	}
+
 	req->async_te = tevent_add_timer(req->sconn->ev_ctx, req, defer_endtime, smbd_smb2_request_pending_timer, req);
 	if (req->async_te == NULL)
 	{
-		if (DEBUGLEVEL>= 10)
-		{
+
 			dbgtext("smbd_smb2_request_pending_queue: no memory\n");
-		}
+
 		return NT_STATUS_NO_MEMORY;
 	}
-	if (DEBUGLEVEL>= 10)
-	{
+
 		dbgtext("smbd_smb2_request_pending_queue: return ok\n");
-	}
+
 	return NT_STATUS_OK;
 }
 
@@ -2270,10 +2263,9 @@ NTSTATUS smbd_smb2_request_dispatch(struct smbd_smb2_request *req)
 	case SMB2_OP_READ:
 	{
 		START_PROFILE(smb2_read);
-		if (DEBUGLEVEL>= 10)
-		{
+
 			dbgtext("line 299:  NTSTATUS smbd_smb2_request_dispatch: case SMB2_OP_READ:\n");
-		}
+
 		return_value = smbd_smb2_request_process_read(req);
 		END_PROFILE(smb2_read);
 	}
