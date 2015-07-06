@@ -807,6 +807,7 @@ static void aio_pread_smb2_done(struct tevent_req *req)
 	if (nread > 0) {
 		fsp->fh->pos = aio_ex->offset + nread;
 		fsp->fh->position_information = fsp->fh->pos;
+		tevent_req_done(subreq);
 	}
 
 	DEBUG(10, ("smb2: scheduled aio_read completed "
@@ -821,7 +822,7 @@ static void aio_pread_smb2_done(struct tevent_req *req)
 		tevent_req_nterror(subreq, status);
 		return;
 	}
-	tevent_req_done(subreq);
+
 }
 
 static void aio_pwrite_smb2_done(struct tevent_req *req);
