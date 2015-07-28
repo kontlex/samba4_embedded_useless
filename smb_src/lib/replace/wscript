@@ -135,6 +135,7 @@ def configure(conf):
     conf.CHECK_TYPE_IN('sa_family_t', 'sys/socket.h')
 
     conf.CHECK_TYPE_IN('sig_atomic_t', 'signal.h', define='HAVE_SIG_ATOMIC_T_TYPE')
+    conf.CHECK_FUNCS('sigsetmask siggetmask sigprocmask sigblock sigaction sigset')
 
     conf.CHECK_FUNCS_IN('''inet_ntoa inet_aton inet_ntop inet_pton connect gethostbyname
                            getaddrinfo getnameinfo freeaddrinfo gai_strerror socketpair''',
@@ -446,21 +447,15 @@ removeea setea
 
     if conf.CONFIG_SET('HAVE_PTHREAD'):
 
-        conf.CHECK_DECLS('pthread_mutexattr_setrobust', headers='pthread.h')
-        if not conf.CONFIG_SET('HAVE_DECL_PTHREAD_MUTEXATTR_SETROBUST'):
-            conf.CHECK_DECLS('pthread_mutexattr_setrobust_np',
-                             headers='pthread.h')
-
         conf.CHECK_FUNCS_IN('pthread_mutexattr_setrobust', 'pthread',
                             checklibc=True, headers='pthread.h')
         if not conf.CONFIG_SET('HAVE_PTHREAD_MUTEXATTR_SETROBUST'):
             conf.CHECK_FUNCS_IN('pthread_mutexattr_setrobust_np', 'pthread',
                                 checklibc=True, headers='pthread.h')
 
-        conf.CHECK_DECLS('pthread_mutex_consistent', headers='pthread.h')
-        if not conf.CONFIG_SET('HAVE_DECL_PTHREAD_MUTEX_CONSISTENT'):
-            conf.CHECK_DECLS('pthread_mutex_consistent_np',
-                             headers='pthread.h')
+        conf.CHECK_DECLS('PTHREAD_MUTEX_ROBUST', headers='pthread.h')
+        if not conf.CONFIG_SET('HAVE_DECL_PTHREAD_MUTEX_ROBUST'):
+            conf.CHECK_DECLS('PTHREAD_MUTEX_ROBUST_NP', headers='pthread.h')
 
         conf.CHECK_FUNCS_IN('pthread_mutex_consistent', 'pthread',
                             checklibc=True, headers='pthread.h')
@@ -470,6 +465,8 @@ removeea setea
 
         if ((conf.CONFIG_SET('HAVE_PTHREAD_MUTEXATTR_SETROBUST') or
              conf.CONFIG_SET('HAVE_PTHREAD_MUTEXATTR_SETROBUST_NP')) and
+            (conf.CONFIG_SET('HAVE_DECL_PTHREAD_MUTEX_ROBUST') or
+             conf.CONFIG_SET('HAVE_DECL_PTHREAD_MUTEX_ROBUST_NP')) and
             (conf.CONFIG_SET('HAVE_PTHREAD_MUTEX_CONSISTENT') or
              conf.CONFIG_SET('HAVE_PTHREAD_MUTEX_CONSISTENT_NP'))):
             conf.DEFINE('HAVE_ROBUST_MUTEXES', 1)

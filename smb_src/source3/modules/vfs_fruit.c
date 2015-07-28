@@ -125,6 +125,7 @@ struct fruit_config_data {
 	bool use_aapl;
 	bool readdir_attr_enabled;
 	bool unix_info_enabled;
+	bool veto_appledouble;
 
 	/*
 	 * Additional options, all enabled by default,
@@ -1332,6 +1333,11 @@ static int init_fruit_config(vfs_handle_struct *handle)
 	}
 	config->encoding = (enum fruit_encoding)enumval;
 
+	if (lp_parm_bool(SNUM(handle->conn),
+			 FRUIT_PARAM_TYPE_NAME, "veto_appledouble", true)) {
+		config->veto_appledouble = true;
+	}
+
 	if (lp_parm_bool(-1, FRUIT_PARAM_TYPE_NAME, "aapl", true)) {
 		config->use_aapl = true;
 	}
@@ -2012,26 +2018,6 @@ static int fruit_connect(vfs_handle_struct *handle,
 		return rc;
 	}
 
-	list = lp_veto_files(talloc_tos(), SNUM(handle->conn));
-
-	if (list) {
-		if (strstr(list, "/" ADOUBLE_NAME_PREFIX "*/") == NULL) {
-			newlist = talloc_asprintf(
-				list,
-				"%s/" ADOUBLE_NAME_PREFIX "*/",
-				list);
-			lp_do_parameter(SNUM(handle->conn),
-					"veto files",
-					newlist);
-		}
-	} else {
-		lp_do_parameter(SNUM(handle->conn),
-				"veto files",
-				"/" ADOUBLE_NAME_PREFIX "*/");
-	}
-
-	TALLOC_FREE(list);
-
 	rc = init_fruit_config(handle);
 	if (rc != 0) {
 		return rc;
@@ -2039,6 +2025,28 @@ static int fruit_connect(vfs_handle_struct *handle,
 
 	SMB_VFS_HANDLE_GET_DATA(handle, config,
 				struct fruit_config_data, return -1);
+
+	if (config->veto_appledouble) {
+		list = lp_veto_files(talloc_tos(), SNUM(handle->conn));
+
+		if (list) {
+			if (strstr(list, "/" ADOUBLE_NAME_PREFIX "*/") == NULL) {
+				newlist = talloc_asprintf(
+					list,
+					"%s/" ADOUBLE_NAME_PREFIX "*/",
+					list);
+				lp_do_parameter(SNUM(handle->conn),
+						"veto files",
+						newlist);
+			}
+		} else {
+			lp_do_parameter(SNUM(handle->conn),
+					"veto files",
+					"/" ADOUBLE_NAME_PREFIX "*/");
+		}
+
+		TALLOC_FREE(list);
+	}
 
 	if (config->encoding == FRUIT_ENC_NATIVE) {
 		lp_do_parameter(
@@ -2609,6 +2617,17 @@ static ssize_t fruit_pread(vfs_handle_struct *handle,
 	}
 
 	if (ad->ad_type == ADOUBLE_META) {
+		char afpinfo_buf[AFP_INFO_SIZE];
+		size_t to_return;
+
+		if ((offset < 0) || (offset > AFP_INFO_SIZE)) {
+			len = 0;
+			rc = 0;
+			goto exit;
+		}
+
+		to_return = AFP_INFO_SIZE - offset;
+
 		ai = afpinfo_new(talloc_tos());
 		if (ai == NULL) {
 			rc = -1;
@@ -2624,11 +2643,14 @@ static ssize_t fruit_pread(vfs_handle_struct *handle,
 		memcpy(&ai->afpi_FinderInfo[0],
 		       ad_entry(ad, ADEID_FINDERI),
 		       ADEDLEN_FINDERI);
-		len = afpinfo_pack(ai, data);
+		len = afpinfo_pack(ai, afpinfo_buf);
 		if (len != AFP_INFO_SIZE) {
 			rc = -1;
 			goto exit;
 		}
+
+		memcpy(data, afpinfo_buf + offset, to_return);
+		len = to_return;
 	} else {
 		len = SMB_VFS_NEXT_PREAD(
 			handle, fsp, data, n,

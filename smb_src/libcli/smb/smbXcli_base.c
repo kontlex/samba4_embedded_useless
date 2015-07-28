@@ -39,8 +39,7 @@ struct smbXcli_session;
 struct smbXcli_tcon;
 
 struct smbXcli_conn {
-	int read_fd;
-	int write_fd;
+	int sock_fd;
 	struct sockaddr_storage local_ss;
 	struct sockaddr_storage remote_ss;
 	const char *remote_name;
@@ -48,6 +47,7 @@ struct smbXcli_conn {
 	struct tevent_queue *outgoing;
 	struct tevent_req **pending;
 	struct tevent_req *read_smb_req;
+	struct tevent_req *suicide_req;
 
 	enum protocol_types min_protocol;
 	enum protocol_types max_protocol;
@@ -206,6 +206,8 @@ struct smbXcli_req_state {
 
 	uint8_t *inbuf;
 
+	struct tevent_req *write_req;
+
 	struct {
 		/* Space for the header including the wct */
 		uint8_t hdr[HDR_VWV];
@@ -309,17 +311,12 @@ struct smbXcli_conn *smbXcli_conn_create(TALLOC_CTX *mem_ctx,
 		return NULL;
 	}
 
-	conn->read_fd = fd;
-	conn->write_fd = dup(fd);
-	if (conn->write_fd == -1) {
-		goto error;
-	}
+	conn->sock_fd = fd;
 
 	conn->remote_name = talloc_strdup(conn, remote_name);
 	if (conn->remote_name == NULL) {
 		goto error;
 	}
-
 
 	ss = (void *)&conn->local_ss;
 	sa = (struct sockaddr *)ss;
@@ -401,9 +398,6 @@ struct smbXcli_conn *smbXcli_conn_create(TALLOC_CTX *mem_ctx,
 	return conn;
 
  error:
-	if (conn->write_fd != -1) {
-		close(conn->write_fd);
-	}
 	TALLOC_FREE(conn);
 	return NULL;
 }
@@ -414,7 +408,7 @@ bool smbXcli_conn_is_connected(struct smbXcli_conn *conn)
 		return false;
 	}
 
-	if (conn->read_fd == -1) {
+	if (conn->sock_fd == -1) {
 		return false;
 	}
 
@@ -441,7 +435,7 @@ bool smbXcli_conn_use_unicode(struct smbXcli_conn *conn)
 
 void smbXcli_conn_set_sockopt(struct smbXcli_conn *conn, const char *options)
 {
-	set_socket_options(conn->read_fd, options);
+	set_socket_options(conn->sock_fd, options);
 }
 
 const struct sockaddr_storage *smbXcli_conn_local_sockaddr(struct smbXcli_conn *conn)
@@ -502,8 +496,11 @@ struct smbXcli_conn_samba_suicide_state {
 	struct smbXcli_conn *conn;
 	struct iovec iov;
 	uint8_t buf[9];
+	struct tevent_req *write_req;
 };
 
+static void smbXcli_conn_samba_suicide_cleanup(struct tevent_req *req,
+					       enum tevent_req_state req_state);
 static void smbXcli_conn_samba_suicide_done(struct tevent_req *subreq);
 
 struct tevent_req *smbXcli_conn_samba_suicide_send(TALLOC_CTX *mem_ctx,
@@ -524,16 +521,51 @@ struct tevent_req *smbXcli_conn_samba_suicide_send(TALLOC_CTX *mem_ctx,
 	SCVAL(state->buf, 8, exitcode);
 	_smb_setlen_nbt(state->buf, sizeof(state->buf)-4);
 
+	if (conn->suicide_req != NULL) {
+		tevent_req_nterror(req, NT_STATUS_INVALID_PARAMETER);
+		return tevent_req_post(req, ev);
+	}
+
 	state->iov.iov_base = state->buf;
 	state->iov.iov_len = sizeof(state->buf);
 
-	subreq = writev_send(state, ev, conn->outgoing, conn->write_fd,
+	subreq = writev_send(state, ev, conn->outgoing, conn->sock_fd,
 			     false, &state->iov, 1);
 	if (tevent_req_nomem(subreq, req)) {
 		return tevent_req_post(req, ev);
 	}
 	tevent_req_set_callback(subreq, smbXcli_conn_samba_suicide_done, req);
+	state->write_req = subreq;
+
+	tevent_req_set_cleanup_fn(req, smbXcli_conn_samba_suicide_cleanup);
+
+	/*
+	 * We need to use tevent_req_defer_callback()
+	 * in order to allow smbXcli_conn_disconnect()
+	 * to do a safe cleanup.
+	 */
+	tevent_req_defer_callback(req, ev);
+	conn->suicide_req = req;
+
 	return req;
+}
+
+static void smbXcli_conn_samba_suicide_cleanup(struct tevent_req *req,
+					       enum tevent_req_state req_state)
+{
+	struct smbXcli_conn_samba_suicide_state *state = tevent_req_data(
+		req, struct smbXcli_conn_samba_suicide_state);
+
+	TALLOC_FREE(state->write_req);
+
+	if (state->conn == NULL) {
+		return;
+	}
+
+	if (state->conn->suicide_req == req) {
+		state->conn->suicide_req = NULL;
+	}
+	state->conn = NULL;
 }
 
 static void smbXcli_conn_samba_suicide_done(struct tevent_req *subreq)
@@ -545,9 +577,12 @@ static void smbXcli_conn_samba_suicide_done(struct tevent_req *subreq)
 	ssize_t nwritten;
 	int err;
 
+	state->write_req = NULL;
+
 	nwritten = writev_recv(subreq, &err);
 	TALLOC_FREE(subreq);
 	if (nwritten == -1) {
+		/* here, we need to notify all pending requests */
 		NTSTATUS status = map_nt_error_from_unix_common(err);
 		smbXcli_conn_disconnect(state->conn, status);
 		return;
@@ -607,14 +642,9 @@ uint32_t smb1cli_conn_max_xmit(struct smbXcli_conn *conn)
 
 bool smb1cli_conn_req_possible(struct smbXcli_conn *conn)
 {
-	size_t pending;
+	size_t pending = talloc_array_length(conn->pending);
 	uint16_t possible = conn->smb1.server.max_mux;
 
-	pending = tevent_queue_length(conn->outgoing);
-	if (pending >= possible) {
-		return false;
-	}
-	pending += talloc_array_length(conn->pending);
 	if (pending >= possible) {
 		return false;
 	}
@@ -784,6 +814,8 @@ void smbXcli_req_unset_pending(struct tevent_req *req)
 	size_t num_pending = talloc_array_length(conn->pending);
 	size_t i;
 
+	TALLOC_FREE(state->write_req);
+
 	if (state->smb1.mid != 0) {
 		/*
 		 * This is a [nt]trans[2] request which waits
@@ -841,6 +873,8 @@ static void smbXcli_req_cleanup(struct tevent_req *req,
 	struct smbXcli_req_state *state =
 		tevent_req_data(req,
 		struct smbXcli_req_state);
+
+	TALLOC_FREE(state->write_req);
 
 	switch (req_state) {
 	case TEVENT_REQ_RECEIVED:
@@ -960,7 +994,7 @@ static bool smbXcli_conn_receive_next(struct smbXcli_conn *conn)
 	 */
 	conn->read_smb_req = read_smb_send(conn->pending,
 					   state->ev,
-					   conn->read_fd);
+					   conn->sock_fd);
 	if (conn->read_smb_req == NULL) {
 		return false;
 	}
@@ -971,17 +1005,11 @@ static bool smbXcli_conn_receive_next(struct smbXcli_conn *conn)
 void smbXcli_conn_disconnect(struct smbXcli_conn *conn, NTSTATUS status)
 {
 	struct smbXcli_session *session;
+	int sock_fd = conn->sock_fd;
 
 	tevent_queue_stop(conn->outgoing);
 
-	if (conn->read_fd != -1) {
-		close(conn->read_fd);
-	}
-	if (conn->write_fd != -1) {
-		close(conn->write_fd);
-	}
-	conn->read_fd = -1;
-	conn->write_fd = -1;
+	conn->sock_fd = -1;
 
 	session = conn->sessions;
 	if (talloc_array_length(conn->pending) == 0) {
@@ -993,6 +1021,17 @@ void smbXcli_conn_disconnect(struct smbXcli_conn *conn, NTSTATUS status)
 	}
 	for (; session; session = session->next) {
 		smb2cli_session_increment_channel_sequence(session);
+	}
+
+	if (conn->suicide_req != NULL) {
+		/*
+		 * smbXcli_conn_samba_suicide_send()
+		 * used tevent_req_defer_callback() already.
+		 */
+		if (!NT_STATUS_IS_OK(status)) {
+			tevent_req_nterror(conn->suicide_req, status);
+		}
+		conn->suicide_req = NULL;
 	}
 
 	/*
@@ -1061,6 +1100,10 @@ void smbXcli_conn_disconnect(struct smbXcli_conn *conn, NTSTATUS status)
 			tevent_req_nterror(req, status);
 		}
 		TALLOC_FREE(chain);
+	}
+
+	if (sock_fd != -1) {
+		close(sock_fd);
 	}
 }
 
@@ -1523,14 +1566,20 @@ static NTSTATUS smb1cli_req_writev_submit(struct tevent_req *req,
 		state->conn->dispatch_incoming = smb1cli_conn_dispatch_incoming;
 	}
 
+	if (!smbXcli_req_set_pending(req)) {
+		return NT_STATUS_NO_MEMORY;
+	}
+
 	tevent_req_set_cancel_fn(req, smbXcli_req_cancel);
 
 	subreq = writev_send(state, state->ev, state->conn->outgoing,
-			     state->conn->write_fd, false, iov, iov_count);
+			     state->conn->sock_fd, false, iov, iov_count);
 	if (subreq == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
 	tevent_req_set_callback(subreq, smb1cli_req_writev_done, req);
+	state->write_req = subreq;
+
 	return NT_STATUS_OK;
 }
 
@@ -1587,23 +1636,20 @@ static void smb1cli_req_writev_done(struct tevent_req *subreq)
 	ssize_t nwritten;
 	int err;
 
+	state->write_req = NULL;
+
 	nwritten = writev_recv(subreq, &err);
 	TALLOC_FREE(subreq);
 	if (nwritten == -1) {
+		/* here, we need to notify all pending requests */
 		NTSTATUS status = map_nt_error_from_unix_common(err);
 		smbXcli_conn_disconnect(state->conn, status);
-		tevent_req_nterror(req, status);
 		return;
 	}
 
 	if (state->one_way) {
 		state->inbuf = NULL;
 		tevent_req_done(req);
-		return;
-	}
-
-	if (!smbXcli_req_set_pending(req)) {
-		tevent_req_nterror(req, NT_STATUS_NO_MEMORY);
 		return;
 	}
 }
@@ -3068,11 +3114,13 @@ skip_credits:
 	}
 
 	subreq = writev_send(state, state->ev, state->conn->outgoing,
-			     state->conn->write_fd, false, iov, num_iov);
+			     state->conn->sock_fd, false, iov, num_iov);
 	if (subreq == NULL) {
 		return NT_STATUS_NO_MEMORY;
 	}
 	tevent_req_set_callback(subreq, smb2cli_req_writev_done, reqs[0]);
+	state->write_req = subreq;
+
 	return NT_STATUS_OK;
 }
 
@@ -3133,6 +3181,8 @@ static void smb2cli_req_writev_done(struct tevent_req *subreq)
 		struct smbXcli_req_state);
 	ssize_t nwritten;
 	int err;
+
+	state->write_req = NULL;
 
 	nwritten = writev_recv(subreq, &err);
 	TALLOC_FREE(subreq);

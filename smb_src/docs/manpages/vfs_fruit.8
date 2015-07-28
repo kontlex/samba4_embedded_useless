@@ -2,12 +2,12 @@
 .\"     Title: vfs_fruit
 .\"    Author: [see the "AUTHOR" section]
 .\" Generator: DocBook XSL Stylesheets v1.78.1 <http://docbook.sf.net/>
-.\"      Date: 05/27/2015
+.\"      Date: 07/14/2015
 .\"    Manual: System Administration tools
 .\"    Source: Samba 4.2
 .\"  Language: English
 .\"
-.TH "VFS_FRUIT" "8" "05/27/2015" "Samba 4\&.2" "System Administration tools"
+.TH "VFS_FRUIT" "8" "07/14/2015" "Samba 4\&.2" "System Administration tools"
 .\" -----------------------------------------------------------------
 .\" * Define some portability stuff
 .\" -----------------------------------------------------------------
@@ -273,6 +273,16 @@ readdir_attr:aapl_max_access = true | false
 fruit:nfs_aces = yes | no
 .RS 4
 Whether support for querying and modifying the UNIX mode of directory entries via NFS ACEs is enabled, default
+\fIyes\fR\&.
+.RE
+.PP
+fruit:veto_appledouble = yes | no
+.RS 4
+Whether \&._ AppleDouble files are vetoed which prevents the client from seing and accessing internal AppleDouble files created by vfs_fruit itself for the purpose of storing a Mac resource fork\&.
+.sp
+Vetoing \&._ files may break some applications, eg extracting Mac ZIP archives from Mac clients failes, because they contain \&._ files\&. Setting this option to false will fix this, but the abstraction leak of exposing the internally created \&._ files may have other unknown side effects\&.
+.sp
+The default is
 \fIyes\fR\&.
 .RE
 .SH "EXAMPLES"

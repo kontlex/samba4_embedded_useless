@@ -261,6 +261,8 @@
 ^samba.wbinfo_simple.\(s4member:local\).--allocate-gid
 ^samba.wbinfo_simple.\(plugin_s4_dc:local\).--allocate-uid
 ^samba.wbinfo_simple.\(plugin_s4_dc:local\).--allocate-gid
+^samba.wbinfo_simple.\(chgdcpass:local\).--allocate-uid
+^samba.wbinfo_simple.\(chgdcpass:local\).--allocate-gid
 #
 # These do not work against winbindd in member mode for unknown reasons
 #

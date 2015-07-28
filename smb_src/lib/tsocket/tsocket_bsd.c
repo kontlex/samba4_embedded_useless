@@ -1409,6 +1409,30 @@ static int tdgram_bsd_dgram_socket(const struct tsocket_address *local,
 	return 0;
 }
 
+int _tdgram_bsd_existing_socket(TALLOC_CTX *mem_ctx,
+				int fd,
+				struct tdgram_context **_dgram,
+				const char *location)
+{
+	struct tdgram_context *dgram;
+	struct tdgram_bsd *bsds;
+
+	dgram = tdgram_context_create(mem_ctx,
+				      &tdgram_bsd_ops,
+				      &bsds,
+				      struct tdgram_bsd,
+				      location);
+	if (!dgram) {
+		return -1;
+	}
+	ZERO_STRUCTP(bsds);
+	bsds->fd = fd;
+	talloc_set_destructor(bsds, tdgram_bsd_destructor);
+
+	*_dgram = dgram;
+	return 0;
+}
+
 int _tdgram_inet_udp_socket(const struct tsocket_address *local,
 			    const struct tsocket_address *remote,
 			    TALLOC_CTX *mem_ctx,
@@ -1433,6 +1457,36 @@ int _tdgram_inet_udp_socket(const struct tsocket_address *local,
 	}
 
 	ret = tdgram_bsd_dgram_socket(local, remote, false,
+				      mem_ctx, dgram, location);
+
+	return ret;
+}
+
+int _tdgram_inet_udp_broadcast_socket(const struct tsocket_address *local,
+				      TALLOC_CTX *mem_ctx,
+				      struct tdgram_context **dgram,
+				      const char *location)
+{
+	struct tsocket_address_bsd *lbsda =
+		talloc_get_type_abort(local->private_data,
+		struct tsocket_address_bsd);
+	int ret;
+
+	switch (lbsda->u.sa.sa_family) {
+	case AF_INET:
+		break;
+#ifdef HAVE_IPV6
+	case AF_INET6:
+		/* only ipv4 */
+		errno = EINVAL;
+		return -1;
+#endif
+	default:
+		errno = EINVAL;
+		return -1;
+	}
+
+	ret = tdgram_bsd_dgram_socket(local, NULL, true,
 				      mem_ctx, dgram, location);
 
 	return ret;

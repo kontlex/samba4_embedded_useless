@@ -581,6 +581,7 @@ static NTSTATUS winbindd_raw_kerberos_login(TALLOC_CTX *mem_ctx,
 	struct PAC_DATA_CTR *pac_data_ctr = NULL;
 	const char *local_service;
 	int i;
+	struct netr_SamInfo3 *info3_copy = NULL;
 
 	*info3 = NULL;
 
@@ -700,10 +701,19 @@ static NTSTATUS winbindd_raw_kerberos_login(TALLOC_CTX *mem_ctx,
 		break;
 	}
 
-	*info3 = &logon_info->info3;
+	if (logon_info == NULL) {
+		DEBUG(10,("Missing logon_info in ticket of %s\n",
+			principal_s));
+		return NT_STATUS_INVALID_PARAMETER;
+	}
 
 	DEBUG(10,("winbindd_raw_kerberos_login: winbindd validated ticket of %s\n",
 		principal_s));
+
+	result = create_info3_from_pac_logon_info(mem_ctx, logon_info, &info3_copy);
+	if (!NT_STATUS_IS_OK(result)) {
+		goto failed;
+	}
 
 	/* if we had a user's ccache then return that string for the pam
 	 * environment */
@@ -740,7 +750,7 @@ static NTSTATUS winbindd_raw_kerberos_login(TALLOC_CTX *mem_ctx,
 		}
 
 	}
-
+	*info3 = info3_copy;
 	return NT_STATUS_OK;
 
 failed:
